@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snipping Tool</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      overflow: hidden;
+      cursor: crosshair;
+      user-select: none;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    #screenshot-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+    }
+
+    #overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    #selection {
+      position: fixed;
+      border: 2px solid #0078D4;
+      background: transparent;
+      display: none;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+    }
+
+    #selection.active {
+      display: block;
+    }
+
+    #drawCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    #drawCanvas.drawing {
+      pointer-events: auto;
+      cursor: crosshair;
+    }
+
+    #dimensions {
+      position: fixed;
+      background: linear-gradient(135deg, #0078D4, #00BCF2);
+      color: white;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 20px;
+      display: none;
+      pointer-events: none;
+      z-index: 200;
+      box-shadow: 0 2px 10px rgba(0, 120, 212, 0.3);
+    }
+
+    #toolbar {
+      position: fixed;
+      background: linear-gradient(180deg, #2d2d30 0%, #252526 100%);
+      border-radius: 12px;
+      padding: 10px;
+      display: none;
+      gap: 6px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.1);
+      z-index: 300;
+      flex-wrap: wrap;
+      max-width: 380px;
+      backdrop-filter: blur(10px);
+    }
+
+    #toolbar.active {
+      display: flex;
+      animation: toolbarSlide 0.2s ease-out;
+    }
+
+    @keyframes toolbarSlide {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .toolbar-section {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding: 4px 8px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+    }
+
+    .toolbar-divider {
+      width: 1px;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.15);
+      margin: 0 4px;
+    }
+
+    .toolbar-btn {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.8);
+      cursor: pointer;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+
+    .toolbar-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      transform: translateY(-1px);
+    }
+
+    .toolbar-btn.active {
+      background: linear-gradient(135deg, #0078D4, #00BCF2);
+      color: white;
+      box-shadow: 0 2px 8px rgba(0, 120, 212, 0.4);
+    }
+
+    .toolbar-btn.primary {
+      background: linear-gradient(135deg, #0078D4, #00BCF2);
+      color: white;
+    }
+
+    .toolbar-btn.primary:hover {
+      background: linear-gradient(135deg, #1a86d9, #00d4ff);
+      box-shadow: 0 4px 12px rgba(0, 120, 212, 0.5);
+    }
+
+    .toolbar-btn.danger {
+      color: #ff6b6b;
+    }
+
+    .toolbar-btn.danger:hover {
+      background: rgba(255, 107, 107, 0.2);
+    }
+
+    .toolbar-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .toolbar-btn .tooltip {
+      position: absolute;
+      bottom: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.9);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .toolbar-btn:hover .tooltip {
+      opacity: 1;
+    }
+
+    .color-picker {
+      display: flex;
+      gap: 4px;
+    }
+
+    .color-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .color-dot:hover {
+      transform: scale(1.15);
+    }
+
+    .color-dot.active {
+      border-color: white;
+      transform: scale(1.1);
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.3), 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .size-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .size-slider {
+      width: 80px;
+      height: 6px;
+      -webkit-appearance: none;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .size-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: linear-gradient(135deg, #0078D4, #00BCF2);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0, 120, 212, 0.4);
+      transition: transform 0.15s;
+    }
+
+    .size-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    .size-preview {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .size-dot {
+      background: white;
+      border-radius: 50%;
+      transition: all 0.15s;
+    }
+
+    #instructions {
+      position: fixed;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.8) 100%);
+      color: white;
+      padding: 14px 28px;
+      border-radius: 30px;
+      font-size: 14px;
+      pointer-events: none;
+      z-index: 200;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .smart-shape-hint {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      display: none;
+      z-index: 200;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .smart-shape-hint.active {
+      display: block;
+      animation: hintPop 0.3s ease-out;
+    }
+
+    @keyframes hintPop {
+      from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    .blur-intensity {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+    }
+
+    .blur-intensity.active {
+      display: flex;
+    }
+
+    .blur-label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.6);
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <img id="screenshot-bg" src="" alt="">
+  <div id="overlay"></div>
+  <div id="selection"></div>
+  <canvas id="drawCanvas"></canvas>
+  <div id="dimensions"></div>
+  <div id="instructions">Click and drag to select an area. Press ESC to cancel.</div>
+  <div class="smart-shape-hint" id="smartHint">Shape auto-corrected!</div>
+
+  <div id="toolbar">
+    <!-- Drawing Tools -->
+    <div class="toolbar-section">
+      <button class="toolbar-btn" id="penBtn" title="Freehand Pen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+          <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+        </svg>
+        <span class="tooltip">Pen (P)</span>
+      </button>
+      <button class="toolbar-btn" id="arrowBtn" title="Arrow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+          <polyline points="12 5 19 12 12 19"/>
+        </svg>
+        <span class="tooltip">Arrow (A)</span>
+      </button>
+      <button class="toolbar-btn" id="rectBtn" title="Rectangle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+        </svg>
+        <span class="tooltip">Rectangle (R)</span>
+      </button>
+      <button class="toolbar-btn" id="circleBtn" title="Circle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+        </svg>
+        <span class="tooltip">Circle (C)</span>
+      </button>
+      <button class="toolbar-btn" id="textBtn" title="Add Text">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4 7 4 4 20 4 20 7"/>
+          <line x1="9" y1="20" x2="15" y2="20"/>
+          <line x1="12" y1="4" x2="12" y2="20"/>
+        </svg>
+        <span class="tooltip">Text (T)</span>
+      </button>
+      <button class="toolbar-btn" id="highlightBtn" title="Highlighter">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 11l-6 6v3h9l3-3"/>
+          <path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/>
+        </svg>
+        <span class="tooltip">Highlight (H)</span>
+      </button>
+    </div>
+
+    <div class="toolbar-divider"></div>
+
+    <!-- Blur Tool -->
+    <div class="toolbar-section">
+      <button class="toolbar-btn" id="blurBtn" title="Blur Area (like WhatsApp)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M8 8h8v8H8z" stroke-dasharray="2 2"/>
+        </svg>
+        <span class="tooltip">Blur (B)</span>
+      </button>
+    </div>
+
+    <div class="blur-intensity" id="blurIntensity">
+      <span class="blur-label">Blur</span>
+      <input type="range" class="size-slider" id="blurSlider" min="5" max="30" value="15">
+    </div>
+
+    <div class="toolbar-divider"></div>
+
+    <!-- Colors -->
+    <div class="toolbar-section">
+      <div class="color-picker">
+        <div class="color-dot active" data-color="#ff3b3b" style="background: linear-gradient(135deg, #ff3b3b, #ff6b6b)"></div>
+        <div class="color-dot" data-color="#00c853" style="background: linear-gradient(135deg, #00c853, #69f0ae)"></div>
+        <div class="color-dot" data-color="#2979ff" style="background: linear-gradient(135deg, #2979ff, #82b1ff)"></div>
+        <div class="color-dot" data-color="#ffea00" style="background: linear-gradient(135deg, #ffea00, #ffff8d)"></div>
+        <div class="color-dot" data-color="#ffffff" style="background: linear-gradient(135deg, #ffffff, #e0e0e0)"></div>
+        <div class="color-dot" data-color="#000000" style="background: linear-gradient(135deg, #424242, #000000)"></div>
+      </div>
+    </div>
+
+    <div class="toolbar-divider"></div>
+
+    <!-- Size Control -->
+    <div class="toolbar-section">
+      <div class="size-control">
+        <div class="size-preview">
+          <div class="size-dot" id="sizePreview"></div>
+        </div>
+        <input type="range" class="size-slider" id="sizeSlider" min="2" max="24" value="4">
+      </div>
+    </div>
+
+    <div class="toolbar-divider"></div>
+
+    <!-- Actions -->
+    <div class="toolbar-section">
+      <button class="toolbar-btn" id="undoBtn" title="Undo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 7v6h6"/>
+          <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+        </svg>
+        <span class="tooltip">Undo (Ctrl+Z)</span>
+      </button>
+      <button class="toolbar-btn" id="clearBtn" title="Clear All">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 6h18"/>
+          <path d="M8 6V4h8v2"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+        </svg>
+        <span class="tooltip">Clear</span>
+      </button>
+    </div>
+
+    <div class="toolbar-divider"></div>
+
+    <!-- Save/Copy -->
+    <div class="toolbar-section">
+      <button class="toolbar-btn" id="copyBtn" title="Copy to Clipboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <span class="tooltip">Copy (Ctrl+C)</span>
+      </button>
+      <button class="toolbar-btn primary" id="saveBtn" title="Save">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
+        <span class="tooltip">Save (Ctrl+S)</span>
+      </button>
+      <button class="toolbar-btn danger" id="cancelBtn" title="Cancel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+        <span class="tooltip">Cancel (Esc)</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const screenshotBg = document.getElementById('screenshot-bg');
+    const overlay = document.getElementById('overlay');
+    const selection = document.getElementById('selection');
+    const dimensions = document.getElementById('dimensions');
+    const instructions = document.getElementById('instructions');
+    const toolbar = document.getElementById('toolbar');
+    const drawCanvas = document.getElementById('drawCanvas');
+    const ctx = drawCanvas.getContext('2d');
+    const smartHint = document.getElementById('smartHint');
+    const blurIntensity = document.getElementById('blurIntensity');
+    const sizePreview = document.getElementById('sizePreview');
+
+    // State
+    let isSelecting = false;
+    let isDrawing = false;
+    let selectionStartX = 0;
+    let selectionStartY = 0;
+    let selectionEndX = 0;
+    let selectionEndY = 0;
+    let drawStartX = 0;
+    let drawStartY = 0;
+    let currentTool = null;
+    let currentColor = '#ff3b3b';
+    let currentSize = 4;
+    let blurAmount = 15;
+    let drawHistory = [];
+    let tempCanvas = null;
+    let freehandPoints = [];
+
+    // Setup canvas size
+    drawCanvas.width = window.innerWidth;
+    drawCanvas.height = window.innerHeight;
+
+    // Update size preview
+    function updateSizePreview() {
+      sizePreview.style.width = currentSize + 'px';
+      sizePreview.style.height = currentSize + 'px';
+    }
+    updateSizePreview();
+
+    // Receive screenshot from main process
+    window.electronAPI.onSetScreenshot((dataUrl) => {
+      screenshotBg.src = dataUrl;
+    });
+
+    // Mouse events for selection
+    document.addEventListener('mousedown', (e) => {
+      if (toolbar.classList.contains('active') && !currentTool) return;
+      if (currentTool) {
+        startDrawing(e);
+        return;
+      }
+
+      isSelecting = true;
+      selectionStartX = e.clientX;
+      selectionStartY = e.clientY;
+      selection.style.left = selectionStartX + 'px';
+      selection.style.top = selectionStartY + 'px';
+      selection.style.width = '0px';
+      selection.style.height = '0px';
+      selection.classList.add('active');
+      overlay.style.display = 'none';
+      instructions.style.display = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (currentTool && isDrawing) {
+        draw(e);
+        return;
+      }
+
+      if (!isSelecting) return;
+
+      selectionEndX = e.clientX;
+      selectionEndY = e.clientY;
+
+      const left = Math.min(selectionStartX, selectionEndX);
+      const top = Math.min(selectionStartY, selectionEndY);
+      const width = Math.abs(selectionEndX - selectionStartX);
+      const height = Math.abs(selectionEndY - selectionStartY);
+
+      selection.style.left = left + 'px';
+      selection.style.top = top + 'px';
+      selection.style.width = width + 'px';
+      selection.style.height = height + 'px';
+
+      dimensions.textContent = `${width} × ${height}`;
+      dimensions.style.left = (left + width + 10) + 'px';
+      dimensions.style.top = (top - 35) + 'px';
+      dimensions.style.display = 'block';
+    });
+
+    document.addEventListener('mouseup', (e) => {
+      if (currentTool && isDrawing) {
+        stopDrawing(e);
+        return;
+      }
+
+      if (!isSelecting) return;
+      isSelecting = false;
+
+      const width = Math.abs(selectionEndX - selectionStartX);
+      const height = Math.abs(selectionEndY - selectionStartY);
+
+      if (width > 10 && height > 10) {
+        const left = Math.min(selectionStartX, selectionEndX);
+        const top = Math.min(selectionStartY, selectionEndY);
+
+        // Position toolbar below selection, centered
+        let toolbarX = left + width / 2 - 190;
+        let toolbarY = top + height + 15;
+
+        // Keep toolbar on screen
+        toolbarX = Math.max(10, Math.min(toolbarX, window.innerWidth - 400));
+        toolbarY = Math.min(toolbarY, window.innerHeight - 80);
+
+        toolbar.style.left = toolbarX + 'px';
+        toolbar.style.top = toolbarY + 'px';
+        toolbar.classList.add('active');
+        dimensions.style.display = 'none';
+      } else {
+        selection.classList.remove('active');
+        overlay.style.display = 'block';
+        instructions.style.display = 'block';
+        dimensions.style.display = 'none';
+      }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (currentTool) {
+          setTool(null);
+        } else {
+          window.close();
+        }
+      }
+      if (e.ctrlKey && e.key === 'z') undo();
+      if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveSnip(); }
+      if (e.ctrlKey && e.key === 'c') copySnip();
+      if (e.key === 'p') setTool('pen');
+      if (e.key === 'a') setTool('arrow');
+      if (e.key === 'r') setTool('rect');
+      if (e.key === 'c' && !e.ctrlKey) setTool('circle');
+      if (e.key === 't') setTool('text');
+      if (e.key === 'h') setTool('highlight');
+      if (e.key === 'b') setTool('blur');
+    });
+
+    // Drawing functions
+    function startDrawing(e) {
+      isDrawing = true;
+      const rect = drawCanvas.getBoundingClientRect();
+      drawStartX = e.clientX - rect.left;
+      drawStartY = e.clientY - rect.top;
+
+      // Save current state for shapes
+      tempCanvas = ctx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+
+      ctx.strokeStyle = currentColor;
+      ctx.fillStyle = currentColor;
+      ctx.lineWidth = currentSize;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (currentTool === 'pen') {
+        freehandPoints = [{x: drawStartX, y: drawStartY}];
+        ctx.beginPath();
+        ctx.moveTo(drawStartX, drawStartY);
+      } else if (currentTool === 'highlight') {
+        freehandPoints = [{x: drawStartX, y: drawStartY}];
+        ctx.globalAlpha = 0.4;
+        ctx.lineWidth = currentSize * 4;
+        ctx.beginPath();
+        ctx.moveTo(drawStartX, drawStartY);
+      }
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+      const rect = drawCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      if (currentTool === 'pen' || currentTool === 'highlight') {
+        freehandPoints.push({x, y});
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      } else if (tempCanvas) {
+        ctx.putImageData(tempCanvas, 0, 0);
+        drawShape(drawStartX, drawStartY, x, y);
+      }
+    }
+
+    function stopDrawing(e) {
+      if (!isDrawing) return;
+      isDrawing = false;
+
+      const rect = drawCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      // Smart shape detection for freehand
+      if (currentTool === 'pen' && freehandPoints.length > 10) {
+        const shape = detectShape(freehandPoints);
+        if (shape) {
+          ctx.putImageData(tempCanvas, 0, 0);
+          drawPerfectShape(shape, freehandPoints);
+          showSmartHint();
+        }
+      }
+
+      if (currentTool !== 'pen' && currentTool !== 'highlight' && tempCanvas) {
+        ctx.putImageData(tempCanvas, 0, 0);
+        drawShape(drawStartX, drawStartY, x, y);
+      }
+
+      ctx.globalAlpha = 1;
+
+      // Save to history
+      drawHistory.push(ctx.getImageData(0, 0, drawCanvas.width, drawCanvas.height));
+      tempCanvas = null;
+      freehandPoints = [];
+    }
+
+    // Smart shape detection
+    function detectShape(points) {
+      if (points.length < 10) return null;
+
+      const first = points[0];
+      const last = points[points.length - 1];
+      const distance = Math.sqrt(Math.pow(last.x - first.x, 2) + Math.pow(last.y - first.y, 2));
+
+      // Check if shape is closed (circle or rectangle)
+      const totalLength = calculatePathLength(points);
+      const closedThreshold = totalLength * 0.15;
+
+      if (distance < closedThreshold) {
+        // Check if it's a circle or rectangle
+        const bounds = getBounds(points);
+        const aspectRatio = bounds.width / bounds.height;
+        const isSquarish = aspectRatio > 0.7 && aspectRatio < 1.4;
+
+        // Check circularity
+        const centerX = bounds.x + bounds.width / 2;
+        const centerY = bounds.y + bounds.height / 2;
+        const avgRadius = (bounds.width + bounds.height) / 4;
+
+        let radiusVariance = 0;
+        for (const p of points) {
+          const r = Math.sqrt(Math.pow(p.x - centerX, 2) + Math.pow(p.y - centerY, 2));
+          radiusVariance += Math.abs(r - avgRadius);
+        }
+        radiusVariance /= points.length;
+
+        const isCircular = radiusVariance < avgRadius * 0.25;
+
+        if (isCircular && isSquarish) {
+          return { type: 'circle', bounds };
+        }
+
+        // Check if corners are roughly 90 degrees (rectangle)
+        const corners = detectCorners(points);
+        if (corners.length >= 3 && corners.length <= 5) {
+          return { type: 'rect', bounds };
+        }
+
+        // Default to ellipse for closed shapes
+        return { type: 'ellipse', bounds };
+      }
+
+      // Check for straight line
+      const linearity = checkLinearity(points);
+      if (linearity > 0.95) {
+        return { type: 'line', start: first, end: last };
+      }
+
+      return null;
+    }
+
+    function calculatePathLength(points) {
+      let length = 0;
+      for (let i = 1; i < points.length; i++) {
+        length += Math.sqrt(
+          Math.pow(points[i].x - points[i-1].x, 2) +
+          Math.pow(points[i].y - points[i-1].y, 2)
+        );
+      }
+      return length;
+    }
+
+    function getBounds(points) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of points) {
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      }
+      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    }
+
+    function detectCorners(points) {
+      const corners = [];
+      const threshold = 0.5;
+
+      for (let i = 5; i < points.length - 5; i++) {
+        const prev = points[i - 5];
+        const curr = points[i];
+        const next = points[i + 5];
+
+        const angle1 = Math.atan2(curr.y - prev.y, curr.x - prev.x);
+        const angle2 = Math.atan2(next.y - curr.y, next.x - curr.x);
+        let angleDiff = Math.abs(angle2 - angle1);
+
+        if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+
+        if (angleDiff > threshold) {
+          corners.push(curr);
+          i += 5; // Skip nearby points
+        }
+      }
+
+      return corners;
+    }
+
+    function checkLinearity(points) {
+      if (points.length < 3) return 1;
+
+      const first = points[0];
+      const last = points[points.length - 1];
+      const lineLength = Math.sqrt(Math.pow(last.x - first.x, 2) + Math.pow(last.y - first.y, 2));
+
+      if (lineLength < 20) return 0;
+
+      let totalDeviation = 0;
+      for (const p of points) {
+        const deviation = pointToLineDistance(p, first, last);
+        totalDeviation += deviation;
+      }
+
+      const avgDeviation = totalDeviation / points.length;
+      return 1 - Math.min(1, avgDeviation / (lineLength * 0.1));
+    }
+
+    function pointToLineDistance(point, lineStart, lineEnd) {
+      const A = point.x - lineStart.x;
+      const B = point.y - lineStart.y;
+      const C = lineEnd.x - lineStart.x;
+      const D = lineEnd.y - lineStart.y;
+
+      const dot = A * C + B * D;
+      const lenSq = C * C + D * D;
+      let param = -1;
+
+      if (lenSq !== 0) param = dot / lenSq;
+
+      let xx, yy;
+
+      if (param < 0) {
+        xx = lineStart.x;
+        yy = lineStart.y;
+      } else if (param > 1) {
+        xx = lineEnd.x;
+        yy = lineEnd.y;
+      } else {
+        xx = lineStart.x + param * C;
+        yy = lineStart.y + param * D;
+      }
+
+      return Math.sqrt(Math.pow(point.x - xx, 2) + Math.pow(point.y - yy, 2));
+    }
+
+    function drawPerfectShape(shape, points) {
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = currentSize;
+      ctx.beginPath();
+
+      if (shape.type === 'circle') {
+        const radius = Math.min(shape.bounds.width, shape.bounds.height) / 2;
+        const cx = shape.bounds.x + shape.bounds.width / 2;
+        const cy = shape.bounds.y + shape.bounds.height / 2;
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      } else if (shape.type === 'ellipse') {
+        const cx = shape.bounds.x + shape.bounds.width / 2;
+        const cy = shape.bounds.y + shape.bounds.height / 2;
+        ctx.ellipse(cx, cy, shape.bounds.width / 2, shape.bounds.height / 2, 0, 0, Math.PI * 2);
+      } else if (shape.type === 'rect') {
+        ctx.rect(shape.bounds.x, shape.bounds.y, shape.bounds.width, shape.bounds.height);
+      } else if (shape.type === 'line') {
+        ctx.moveTo(shape.start.x, shape.start.y);
+        ctx.lineTo(shape.end.x, shape.end.y);
+      }
+
+      ctx.stroke();
+    }
+
+    function showSmartHint() {
+      smartHint.classList.add('active');
+      setTimeout(() => smartHint.classList.remove('active'), 1500);
+    }
+
+    function drawShape(x1, y1, x2, y2) {
+      ctx.beginPath();
+      ctx.strokeStyle = currentColor;
+      ctx.fillStyle = currentColor;
+      ctx.lineWidth = currentSize;
+
+      switch (currentTool) {
+        case 'arrow':
+          drawArrow(x1, y1, x2, y2);
+          break;
+        case 'rect':
+          ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+          break;
+        case 'circle':
+          const rx = Math.abs(x2 - x1) / 2;
+          const ry = Math.abs(y2 - y1) / 2;
+          const cx = x1 + (x2 - x1) / 2;
+          const cy = y1 + (y2 - y1) / 2;
+          ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        case 'blur':
+          applyBlur(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+          break;
+        case 'text':
+          const text = prompt('Enter text:');
+          if (text) {
+            ctx.font = `bold ${currentSize * 5}px 'Segoe UI', sans-serif`;
+            ctx.fillText(text, x1, y1 + currentSize * 5);
+          }
+          break;
+      }
+    }
+
+    function drawArrow(x1, y1, x2, y2) {
+      const headLength = Math.max(15, currentSize * 3);
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+
+      // Draw line
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      // Draw arrowhead
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(
+        x2 - headLength * Math.cos(angle - Math.PI / 6),
+        y2 - headLength * Math.sin(angle - Math.PI / 6)
+      );
+      ctx.lineTo(
+        x2 - headLength * Math.cos(angle + Math.PI / 6),
+        y2 - headLength * Math.sin(angle + Math.PI / 6)
+      );
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // WhatsApp-style blur
+    function applyBlur(x, y, w, h) {
+      if (w < 5 || h < 5) return;
+
+      // Get the screenshot image data from the actual area
+      const scaleX = screenshotBg.naturalWidth / window.innerWidth;
+      const scaleY = screenshotBg.naturalHeight / window.innerHeight;
+
+      // Create a temporary canvas for the blur effect
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = w;
+      tempCanvas.height = h;
+      const tempCtx = tempCanvas.getContext('2d');
+
+      // Draw the portion of screenshot to temp canvas
+      tempCtx.drawImage(
+        screenshotBg,
+        x * scaleX, y * scaleY, w * scaleX, h * scaleY,
+        0, 0, w, h
+      );
+
+      // Apply pixelation blur effect (like WhatsApp)
+      const pixelSize = Math.max(5, Math.floor(blurAmount / 2));
+      const imgData = tempCtx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+
+      // Pixelate
+      for (let py = 0; py < h; py += pixelSize) {
+        for (let px = 0; px < w; px += pixelSize) {
+          let r = 0, g = 0, b = 0, count = 0;
+
+          // Sample pixels in this block
+          for (let dy = 0; dy < pixelSize && py + dy < h; dy++) {
+            for (let dx = 0; dx < pixelSize && px + dx < w; dx++) {
+              const i = ((py + dy) * w + (px + dx)) * 4;
+              r += data[i];
+              g += data[i + 1];
+              b += data[i + 2];
+              count++;
+            }
+          }
+
+          // Average color
+          r = Math.floor(r / count);
+          g = Math.floor(g / count);
+          b = Math.floor(b / count);
+
+          // Apply to all pixels in block
+          for (let dy = 0; dy < pixelSize && py + dy < h; dy++) {
+            for (let dx = 0; dx < pixelSize && px + dx < w; dx++) {
+              const i = ((py + dy) * w + (px + dx)) * 4;
+              data[i] = r;
+              data[i + 1] = g;
+              data[i + 2] = b;
+            }
+          }
+        }
+      }
+
+      tempCtx.putImageData(imgData, 0, 0);
+
+      // Draw the blurred area onto the main canvas
+      ctx.drawImage(tempCanvas, x, y);
+
+      // Add a subtle border
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, w, h);
+    }
+
+    function undo() {
+      if (drawHistory.length > 0) {
+        drawHistory.pop();
+        if (drawHistory.length > 0) {
+          ctx.putImageData(drawHistory[drawHistory.length - 1], 0, 0);
+        } else {
+          ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+        }
+      }
+    }
+
+    function clearAll() {
+      drawHistory = [];
+      ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    }
+
+    function setTool(tool) {
+      currentTool = currentTool === tool ? null : tool;
+
+      document.querySelectorAll('#toolbar .toolbar-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      if (currentTool) {
+        const btnId = currentTool + 'Btn';
+        document.getElementById(btnId)?.classList.add('active');
+        drawCanvas.classList.add('drawing');
+      } else {
+        drawCanvas.classList.remove('drawing');
+      }
+
+      // Show/hide blur intensity slider
+      blurIntensity.classList.toggle('active', currentTool === 'blur');
+    }
+
+    // Prevent toolbar clicks from triggering drawing
+    toolbar.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+    });
+
+    // Tool buttons
+    document.getElementById('penBtn').addEventListener('click', () => setTool('pen'));
+    document.getElementById('arrowBtn').addEventListener('click', () => setTool('arrow'));
+    document.getElementById('rectBtn').addEventListener('click', () => setTool('rect'));
+    document.getElementById('circleBtn').addEventListener('click', () => setTool('circle'));
+    document.getElementById('textBtn').addEventListener('click', () => setTool('text'));
+    document.getElementById('highlightBtn').addEventListener('click', () => setTool('highlight'));
+    document.getElementById('blurBtn').addEventListener('click', () => setTool('blur'));
+    document.getElementById('undoBtn').addEventListener('click', undo);
+    document.getElementById('clearBtn').addEventListener('click', clearAll);
+
+    // Color picker
+    document.querySelectorAll('.color-dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
+        currentColor = dot.dataset.color;
+      });
+    });
+
+    // Size slider
+    document.getElementById('sizeSlider').addEventListener('input', (e) => {
+      currentSize = parseInt(e.target.value);
+      updateSizePreview();
+    });
+
+    // Blur slider
+    document.getElementById('blurSlider').addEventListener('input', (e) => {
+      blurAmount = parseInt(e.target.value);
+    });
+
+    // Action buttons
+    async function copySnip() {
+      const imageData = await captureSelection();
+      window.electronAPI.copyToClipboard(imageData);
+      window.close();
+    }
+
+    async function saveSnip() {
+      const imageData = await captureSelection();
+      window.electronAPI.saveSnip(imageData);
+      window.close();
+    }
+
+    document.getElementById('copyBtn').addEventListener('click', copySnip);
+    document.getElementById('saveBtn').addEventListener('click', saveSnip);
+    document.getElementById('cancelBtn').addEventListener('click', () => window.close());
+
+    // Capture the selected area with HiDPI support and drawings
+    async function captureSelection() {
+      const left = Math.min(selectionStartX, selectionEndX);
+      const top = Math.min(selectionStartY, selectionEndY);
+      const width = Math.abs(selectionEndX - selectionStartX);
+      const height = Math.abs(selectionEndY - selectionStartY);
+
+      const scaleX = screenshotBg.naturalWidth / window.innerWidth;
+      const scaleY = screenshotBg.naturalHeight / window.innerHeight;
+
+      const scaledLeft = Math.floor(left * scaleX);
+      const scaledTop = Math.floor(top * scaleY);
+      const scaledWidth = Math.floor(width * scaleX);
+      const scaledHeight = Math.floor(height * scaleY);
+
+      // Create final canvas
+      const finalCanvas = document.createElement('canvas');
+      finalCanvas.width = scaledWidth;
+      finalCanvas.height = scaledHeight;
+      const finalCtx = finalCanvas.getContext('2d');
+
+      // Draw screenshot
+      finalCtx.drawImage(screenshotBg, scaledLeft, scaledTop, scaledWidth, scaledHeight, 0, 0, scaledWidth, scaledHeight);
+
+      // Draw annotations (scaled)
+      finalCtx.drawImage(drawCanvas, left, top, width, height, 0, 0, scaledWidth, scaledHeight);
+
+      return finalCanvas.toDataURL('image/png');
+    }
+  </script>
+</body>
+</html>

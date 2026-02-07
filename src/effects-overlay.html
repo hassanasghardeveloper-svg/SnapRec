@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Effects Overlay</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    /* Cursor Highlight */
+    #cursorHighlight {
+      position: fixed;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255, 235, 59, 0.4);
+      border: 2px solid rgba(255, 235, 59, 0.8);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      display: none;
+      z-index: 9999;
+      transition: opacity 0.1s;
+    }
+
+    #cursorHighlight.active {
+      display: block;
+    }
+
+    /* Click Effect */
+    .click-effect {
+      position: fixed;
+      width: 30px;
+      height: 30px;
+      border: 3px solid #ffeb3b;
+      border-radius: 50%;
+      pointer-events: none;
+      animation: clickRipple 0.5s ease-out forwards;
+      z-index: 9998;
+    }
+
+    @keyframes clickRipple {
+      0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(-50%, -50%) scale(2.5);
+        opacity: 0;
+      }
+    }
+
+    /* Keyboard Overlay */
+    #keyboardOverlay {
+      position: fixed;
+      bottom: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.85);
+      padding: 12px 24px;
+      border-radius: 12px;
+      display: none;
+      z-index: 9997;
+      pointer-events: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    #keyboardOverlay.active {
+      display: block;
+      animation: keyFadeIn 0.15s ease-out;
+    }
+
+    @keyframes keyFadeIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    .key-display {
+      font-size: 22px;
+      font-weight: 600;
+      color: white;
+      font-family: 'Consolas', 'Courier New', monospace;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    .key-badge {
+      display: inline-block;
+      background: linear-gradient(180deg, #444 0%, #333 100%);
+      padding: 6px 12px;
+      margin: 0 3px;
+      border-radius: 6px;
+      border: 1px solid #555;
+      box-shadow: 0 2px 0 #222, 0 3px 3px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+  <div id="cursorHighlight"></div>
+  <div id="keyboardOverlay">
+    <div class="key-display" id="keyDisplay"></div>
+  </div>
+
+  <script>
+    const cursorHighlight = document.getElementById('cursorHighlight');
+    const keyboardOverlay = document.getElementById('keyboardOverlay');
+    const keyDisplay = document.getElementById('keyDisplay');
+
+    let cursorHighlightEnabled = false;
+    let clickEffectsEnabled = false;
+    let keyboardOverlayEnabled = false;
+    let pressedKeys = [];
+    let hideKeyboardTimeout = null;
+
+    // Listen for events from main process
+    window.electronAPI.onEffectEvent((data) => {
+      switch (data.type) {
+        case 'settings':
+          cursorHighlightEnabled = data.cursorHighlight;
+          clickEffectsEnabled = data.clickEffects;
+          keyboardOverlayEnabled = data.keyboardOverlay;
+
+          if (cursorHighlightEnabled) {
+            cursorHighlight.classList.add('active');
+          } else {
+            cursorHighlight.classList.remove('active');
+          }
+          break;
+
+        case 'mousemove':
+          if (cursorHighlightEnabled) {
+            cursorHighlight.style.left = data.x + 'px';
+            cursorHighlight.style.top = data.y + 'px';
+          }
+          break;
+
+        case 'click':
+          if (clickEffectsEnabled) {
+            createClickEffect(data.x, data.y);
+          }
+          break;
+
+        case 'keydown':
+          if (keyboardOverlayEnabled) {
+            if (!pressedKeys.includes(data.key)) {
+              pressedKeys.push(data.key);
+              updateKeyDisplay();
+            }
+            keyboardOverlay.classList.add('active');
+            clearTimeout(hideKeyboardTimeout);
+          }
+          break;
+
+        case 'keyup':
+          if (keyboardOverlayEnabled) {
+            pressedKeys = pressedKeys.filter(k => k !== data.key);
+            updateKeyDisplay();
+
+            if (pressedKeys.length === 0) {
+              hideKeyboardTimeout = setTimeout(() => {
+                keyboardOverlay.classList.remove('active');
+              }, 800);
+            }
+          }
+          break;
+
+        case 'stop':
+          cursorHighlight.classList.remove('active');
+          keyboardOverlay.classList.remove('active');
+          pressedKeys = [];
+          break;
+      }
+    });
+
+    function createClickEffect(x, y) {
+      const effect = document.createElement('div');
+      effect.className = 'click-effect';
+      effect.style.left = x + 'px';
+      effect.style.top = y + 'px';
+      document.body.appendChild(effect);
+
+      setTimeout(() => effect.remove(), 500);
+    }
+
+    function updateKeyDisplay() {
+      if (pressedKeys.length === 0) {
+        keyDisplay.innerHTML = '';
+        return;
+      }
+
+      keyDisplay.innerHTML = pressedKeys
+        .map(key => `<span class="key-badge">${key}</span>`)
+        .join(' + ');
+    }
+  </script>
+</body>
+</html>
