@@ -30,8 +30,7 @@
     "productName": "SnapRec",
     "copyright": "Copyright © 2024 SnapRec",
     "directories": {
-      "output": "dist",
-      "buildResources": "assets"
+      "output": "dist"
     },
     "files": [
       "**/*",
@@ -43,26 +42,14 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "portable",
           "arch": [
             "x64"
           ]
         }
       ],
-      "icon": "assets/icons/icon.png",
-      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "artifactName": "${productName}-${version}.${ext}",
       "signAndEditExecutable": false
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "SnapRec",
-      "installerIcon": "assets/icons/icon.png",
-      "uninstallerIcon": "assets/icons/icon.png",
-      "installerHeaderIcon": "assets/icons/icon.png",
-      "deleteAppDataOnUninstall": true
     }
   }
 }
