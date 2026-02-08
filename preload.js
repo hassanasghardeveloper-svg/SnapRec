@@ -85,6 +85,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoStart: (enabled) => ipcRenderer.invoke('set-auto-start', enabled),
   getAutoStart: () => ipcRenderer.invoke('get-auto-start'),
 
+  // Zoom overlay
+  openZoom: () => ipcRenderer.invoke('open-zoom'),
+  closeZoom: () => ipcRenderer.invoke('close-zoom'),
+  onZoomScreenshot: (callback) => {
+    ipcRenderer.on('zoom-screenshot', (event, dataUrl) => callback(dataUrl));
+  },
+
   // Remove listeners
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);

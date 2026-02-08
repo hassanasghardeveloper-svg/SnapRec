@@ -19,6 +19,7 @@ let snippingWindow;
 let effectsOverlay;
 let timerOverlay;
 let annotationOverlay;
+let zoomOverlay;
 let tray;
 let store;
 let isRecording = false;
@@ -512,6 +513,59 @@ function setupIpcHandlers() {
     const settings = app.getLoginItemSettings();
     return settings.openAtLogin;
   });
+
+  // Zoom overlay
+  ipcMain.handle('open-zoom', async () => {
+    if (zoomOverlay && !zoomOverlay.isDestroyed()) {
+      zoomOverlay.focus();
+      return true;
+    }
+
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.bounds;
+
+    // Capture screenshot for zoom
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: width, height: height }
+    });
+
+    if (sources.length === 0) return false;
+
+    zoomOverlay = new BrowserWindow({
+      width: width,
+      height: height,
+      x: 0,
+      y: 0,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      fullscreen: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    });
+
+    zoomOverlay.loadFile(path.join(__dirname, 'src', 'zoom-overlay.html'));
+
+    zoomOverlay.webContents.once('did-finish-load', () => {
+      const screenshotDataUrl = sources[0].thumbnail.toDataURL();
+      zoomOverlay.webContents.send('zoom-screenshot', screenshotDataUrl);
+    });
+
+    return true;
+  });
+
+  ipcMain.handle('close-zoom', () => {
+    if (zoomOverlay && !zoomOverlay.isDestroyed()) {
+      zoomOverlay.close();
+      zoomOverlay = null;
+    }
+    return true;
+  });
 }
 
 // App lifecycle
@@ -560,6 +614,11 @@ app.on('will-quit', () => {
   if (snippingWindow && !snippingWindow.isDestroyed()) {
     snippingWindow.close();
     snippingWindow = null;
+  }
+  // Clean up zoom overlay
+  if (zoomOverlay && !zoomOverlay.isDestroyed()) {
+    zoomOverlay.close();
+    zoomOverlay = null;
   }
 });
 app.on('before-quit', () => { app.isQuitting = true; });

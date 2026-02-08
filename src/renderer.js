@@ -1412,8 +1412,87 @@ function cancelScheduledRecording() {
   showToast('Scheduled recording cancelled');
 }
 
+// Recording Profiles
+const recordingProfiles = {
+  gaming: {
+    name: 'Gaming',
+    videoQuality: 'high',
+    fps: 60,
+    systemAudio: true,
+    micAudio: false,
+    webcam: false
+  },
+  tutorial: {
+    name: 'Tutorial',
+    videoQuality: 'high',
+    fps: 30,
+    systemAudio: true,
+    micAudio: true,
+    webcam: false
+  },
+  meeting: {
+    name: 'Meeting',
+    videoQuality: 'medium',
+    fps: 30,
+    systemAudio: false,
+    micAudio: true,
+    webcam: true
+  },
+  quick: {
+    name: 'Quick',
+    videoQuality: 'medium',
+    fps: 30,
+    systemAudio: false,
+    micAudio: false,
+    webcam: false
+  }
+};
+
+function applyProfile(profileName) {
+  const profile = recordingProfiles[profileName];
+  if (!profile) return;
+
+  // Apply settings
+  if (videoQuality) videoQuality.value = profile.videoQuality;
+  if (fps) fps.value = profile.fps.toString();
+  if (systemAudio) systemAudio.checked = profile.systemAudio;
+  if (micAudio) micAudio.checked = profile.micAudio;
+
+  // Handle webcam
+  if (webcamToggle) {
+    if (profile.webcam && !webcamEnabled) {
+      webcamToggle.checked = true;
+      startWebcam();
+    } else if (!profile.webcam && webcamEnabled) {
+      webcamToggle.checked = false;
+      stopWebcam();
+    }
+  }
+
+  // Update profile button states
+  document.querySelectorAll('.profile-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.profile === profileName);
+  });
+
+  showToast(`${profile.name} profile applied`);
+}
+
+function initProfileButtons() {
+  document.querySelectorAll('.profile-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const profileName = btn.dataset.profile;
+      if (profileName) {
+        applyProfile(profileName);
+      }
+    });
+  });
+}
+
 // Initialize new features
 function initNewFeatures() {
+  // Initialize profile buttons
+  initProfileButtons();
+
   // Audio button
   audioBtn?.addEventListener('click', () => {
     if (isRecording) {
@@ -1425,6 +1504,13 @@ function initNewFeatures() {
 
   // Color picker button
   colorPickerBtn?.addEventListener('click', startColorPicker);
+
+  // Zoom button
+  const zoomBtn = document.getElementById('zoomBtn');
+  zoomBtn?.addEventListener('click', () => {
+    window.electronAPI.openZoom?.();
+    showToast('Zoom tool enabled - Click to zoom, ESC to close');
+  });
 
   // Cursor highlight toggle
   const cursorHighlightEl = document.getElementById('cursorHighlight');
