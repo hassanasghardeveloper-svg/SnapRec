@@ -324,7 +324,7 @@ function getWebcamPosition() {
 // Composite webcam onto screen recording using canvas
 let compositeCanvas = null;
 let compositeCtx = null;
-let compositeAnimationId = null;
+let compositeIntervalId = null;
 
 function createCompositedStream(screenStream, webcamStream, fps = 30) {
   // Get video track settings
@@ -337,7 +337,7 @@ function createCompositedStream(screenStream, webcamStream, fps = 30) {
   compositeCanvas = document.createElement('canvas');
   compositeCanvas.width = width;
   compositeCanvas.height = height;
-  compositeCtx = compositeCanvas.getContext('2d');
+  compositeCtx = compositeCanvas.getContext('2d', { alpha: false });
 
   // Create video elements for drawing
   const screenVideo = document.createElement('video');
@@ -351,11 +351,20 @@ function createCompositedStream(screenStream, webcamStream, fps = 30) {
   webcamVideo.play();
 
   // Webcam size (proportional to screen)
-  const webcamWidth = Math.round(width * 0.2); // 20% of screen width
+  const webcamWidth = Math.round(width * 0.15); // 15% of screen width (smaller = less processing)
   const webcamHeight = Math.round(webcamWidth * 0.75); // 4:3 aspect ratio
   const padding = 20;
+  const radius = 8;
 
-  // Draw loop
+  // Pre-calculate positions
+  const positions = {
+    'top-left': { x: padding, y: padding },
+    'top-right': { x: width - webcamWidth - padding, y: padding },
+    'bottom-left': { x: padding, y: height - webcamHeight - padding },
+    'bottom-right': { x: width - webcamWidth - padding, y: height - webcamHeight - padding }
+  };
+
+  // Draw function - optimized
   function drawFrame() {
     if (!compositeCtx) return;
 
@@ -364,75 +373,42 @@ function createCompositedStream(screenStream, webcamStream, fps = 30) {
 
     // Draw webcam if enabled
     if (webcamEnabled && webcamStream) {
-      const pos = getWebcamPosition();
-      let x, y;
+      const pos = positions[getWebcamPosition()] || positions['bottom-right'];
+      const x = pos.x;
+      const y = pos.y;
 
-      switch (pos) {
-        case 'top-left':
-          x = padding;
-          y = padding;
-          break;
-        case 'top-right':
-          x = width - webcamWidth - padding;
-          y = padding;
-          break;
-        case 'bottom-left':
-          x = padding;
-          y = height - webcamHeight - padding;
-          break;
-        case 'bottom-right':
-        default:
-          x = width - webcamWidth - padding;
-          y = height - webcamHeight - padding;
-          break;
-      }
-
-      // Draw rounded rectangle background
+      // Simple rounded clip and draw
       compositeCtx.save();
       compositeCtx.beginPath();
-      const radius = 10;
-      compositeCtx.moveTo(x + radius, y);
-      compositeCtx.lineTo(x + webcamWidth - radius, y);
-      compositeCtx.quadraticCurveTo(x + webcamWidth, y, x + webcamWidth, y + radius);
-      compositeCtx.lineTo(x + webcamWidth, y + webcamHeight - radius);
-      compositeCtx.quadraticCurveTo(x + webcamWidth, y + webcamHeight, x + webcamWidth - radius, y + webcamHeight);
-      compositeCtx.lineTo(x + radius, y + webcamHeight);
-      compositeCtx.quadraticCurveTo(x, y + webcamHeight, x, y + webcamHeight - radius);
-      compositeCtx.lineTo(x, y + radius);
-      compositeCtx.quadraticCurveTo(x, y, x + radius, y);
-      compositeCtx.closePath();
+      compositeCtx.roundRect(x, y, webcamWidth, webcamHeight, radius);
       compositeCtx.clip();
-
-      // Draw webcam video
       compositeCtx.drawImage(webcamVideo, x, y, webcamWidth, webcamHeight);
-
-      // Draw border
       compositeCtx.restore();
-      compositeCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+
+      // Simple border
+      compositeCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
       compositeCtx.lineWidth = 2;
       compositeCtx.beginPath();
-      compositeCtx.moveTo(x + radius, y);
-      compositeCtx.lineTo(x + webcamWidth - radius, y);
-      compositeCtx.quadraticCurveTo(x + webcamWidth, y, x + webcamWidth, y + radius);
-      compositeCtx.lineTo(x + webcamWidth, y + webcamHeight - radius);
-      compositeCtx.quadraticCurveTo(x + webcamWidth, y + webcamHeight, x + webcamWidth - radius, y + webcamHeight);
-      compositeCtx.lineTo(x + radius, y + webcamHeight);
-      compositeCtx.quadraticCurveTo(x, y + webcamHeight, x, y + webcamHeight - radius);
-      compositeCtx.lineTo(x, y + radius);
-      compositeCtx.quadraticCurveTo(x, y, x + radius, y);
-      compositeCtx.closePath();
+      compositeCtx.roundRect(x, y, webcamWidth, webcamHeight, radius);
       compositeCtx.stroke();
     }
-
-    compositeAnimationId = requestAnimationFrame(drawFrame);
   }
 
+  // Use setInterval instead of requestAnimationFrame for consistent frame rate
+  // This reduces CPU usage by not trying to render at 60fps
+  const frameInterval = Math.round(1000 / fps);
+
   // Start drawing when videos are ready
+  let started = false;
+  function startDrawing() {
+    if (started) return;
+    started = true;
+    compositeIntervalId = setInterval(drawFrame, frameInterval);
+  }
+
   screenVideo.onloadedmetadata = () => {
-    webcamVideo.onloadedmetadata = () => {
-      drawFrame();
-    };
-    if (webcamVideo.readyState >= 2) drawFrame();
+    screenVideo.oncanplay = startDrawing;
+    if (screenVideo.readyState >= 3) startDrawing();
   };
 
   // Get canvas stream
@@ -447,9 +423,9 @@ function createCompositedStream(screenStream, webcamStream, fps = 30) {
 }
 
 function stopCompositing() {
-  if (compositeAnimationId) {
-    cancelAnimationFrame(compositeAnimationId);
-    compositeAnimationId = null;
+  if (compositeIntervalId) {
+    clearInterval(compositeIntervalId);
+    compositeIntervalId = null;
   }
   compositeCanvas = null;
   compositeCtx = null;
