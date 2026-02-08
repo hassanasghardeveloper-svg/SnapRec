@@ -107,6 +107,9 @@ function registerGlobalShortcuts() {
   globalShortcut.register('CommandOrControl+Shift+A', () => {
     openSnippingTool();
   });
+  globalShortcut.register('CommandOrControl+Shift+X', () => {
+    if (mainWindow) mainWindow.webContents.send('stop-recording');
+  });
 }
 
 // Snipping Tool - Like Windows Snip & Sketch

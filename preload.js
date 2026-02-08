@@ -34,6 +34,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('toggle-recording', () => callback());
   },
 
+  onStopRecording: (callback) => {
+    ipcRenderer.on('stop-recording', () => callback());
+  },
+
   onAreaSelect: (callback) => {
     ipcRenderer.on('area-select', () => callback());
   },

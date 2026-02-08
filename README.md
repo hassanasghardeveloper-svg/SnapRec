@@ -50,6 +50,7 @@ A modern, feature-rich screen recorder and screenshot application for Windows bu
 |----------|--------|
 | `Ctrl+Shift+S` | Take Screenshot |
 | `Ctrl+Shift+R` | Start/Stop Recording |
+| `Ctrl+Shift+X` | Stop Recording |
 | `Ctrl+Shift+A` | Open Snipping Tool |
 
 ## Installation

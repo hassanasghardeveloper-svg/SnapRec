@@ -826,6 +826,12 @@ function setupIPCListeners() {
     }
   });
 
+  window.electronAPI.onStopRecording?.(() => {
+    if (isRecording) {
+      stopRecording();
+    }
+  });
+
   window.electronAPI.onAreaSelect(() => takeScreenshot());
 
   // Snipping tool notifications
