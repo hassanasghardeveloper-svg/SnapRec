@@ -55,6 +55,8 @@ const watermarkText = document.getElementById('watermarkText');
 const scheduleTime = document.getElementById('scheduleTime');
 const scheduleBtn = document.getElementById('scheduleBtn');
 const scheduleStatus = document.getElementById('scheduleStatus');
+const showTimerOverlay = document.getElementById('showTimerOverlay');
+const annotationBtn = document.getElementById('annotationBtn');
 
 // State
 let selectedSource = null;
@@ -533,6 +535,11 @@ async function startRecording() {
     timerInterval = setInterval(updateTimer, 1000);
     updateTimer();
 
+    // Show timer overlay if enabled
+    if (showTimerOverlay?.checked) {
+      window.electronAPI.createTimerOverlay?.();
+    }
+
     window.electronAPI.setRecordingStatus(true);
     setStatus(isGifMode ? 'Recording GIF...' : 'Recording...', true);
     showToast(isGifMode ? 'GIF recording started' : 'Recording started');
@@ -551,6 +558,9 @@ function stopRecording() {
 
     // Stop webcam compositing if active
     stopCompositing();
+
+    // Close timer overlay
+    window.electronAPI.closeTimerOverlay?.();
 
     mediaRecorder.stream.getTracks().forEach(track => track.stop());
 
@@ -599,7 +609,11 @@ function updateTimer() {
   const seconds = Math.floor(elapsed / 1000) % 60;
   const minutes = Math.floor(elapsed / 60000) % 60;
   const hours = Math.floor(elapsed / 3600000);
-  recTime.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  recTime.textContent = timeStr;
+
+  // Update timer overlay
+  window.electronAPI.updateTimer?.({ time: timeStr, paused: isPaused });
 }
 
 // Save recording
@@ -884,6 +898,12 @@ function setupEventListeners() {
 
   folderBtn.addEventListener('click', async () => {
     await window.electronAPI.openFolder?.();
+  });
+
+  // Annotation button
+  annotationBtn?.addEventListener('click', () => {
+    window.electronAPI.openAnnotation?.();
+    showToast('Draw on screen enabled - Press ESC to close');
   });
 
   // Recording controls

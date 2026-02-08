@@ -17,6 +17,8 @@ function setupFFmpeg() {
 let mainWindow;
 let snippingWindow;
 let effectsOverlay;
+let timerOverlay;
+let annotationOverlay;
 let tray;
 let store;
 let isRecording = false;
@@ -413,6 +415,103 @@ function setupIpcHandlers() {
       effectsOverlay.webContents.send('effect-event', data);
     }
   });
+
+  // Timer overlay
+  ipcMain.handle('create-timer-overlay', () => {
+    if (timerOverlay && !timerOverlay.isDestroyed()) {
+      return true;
+    }
+
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+
+    timerOverlay = new BrowserWindow({
+      width: 180,
+      height: 60,
+      x: width - 200,
+      y: 20,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      focusable: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    });
+
+    timerOverlay.loadFile(path.join(__dirname, 'src', 'timer-overlay.html'));
+    timerOverlay.setIgnoreMouseEvents(true);
+    return true;
+  });
+
+  ipcMain.handle('close-timer-overlay', () => {
+    if (timerOverlay && !timerOverlay.isDestroyed()) {
+      timerOverlay.close();
+      timerOverlay = null;
+    }
+    return true;
+  });
+
+  ipcMain.on('timer-update', (event, data) => {
+    if (timerOverlay && !timerOverlay.isDestroyed()) {
+      timerOverlay.webContents.send('timer-update', data);
+    }
+  });
+
+  // Annotation overlay
+  ipcMain.handle('open-annotation', () => {
+    if (annotationOverlay && !annotationOverlay.isDestroyed()) {
+      annotationOverlay.focus();
+      return true;
+    }
+
+    const { width, height } = screen.getPrimaryDisplay().bounds;
+
+    annotationOverlay = new BrowserWindow({
+      width: width,
+      height: height,
+      x: 0,
+      y: 0,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      fullscreen: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    });
+
+    annotationOverlay.loadFile(path.join(__dirname, 'src', 'annotation-overlay.html'));
+    return true;
+  });
+
+  ipcMain.handle('close-annotation', () => {
+    if (annotationOverlay && !annotationOverlay.isDestroyed()) {
+      annotationOverlay.close();
+      annotationOverlay = null;
+    }
+    return true;
+  });
+
+  // Auto-start on boot
+  ipcMain.handle('set-auto-start', (event, enabled) => {
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      path: app.getPath('exe')
+    });
+    return true;
+  });
+
+  ipcMain.handle('get-auto-start', () => {
+    const settings = app.getLoginItemSettings();
+    return settings.openAtLogin;
+  });
 }
 
 // App lifecycle
@@ -446,6 +545,16 @@ app.on('will-quit', () => {
   if (effectsOverlay && !effectsOverlay.isDestroyed()) {
     effectsOverlay.close();
     effectsOverlay = null;
+  }
+  // Clean up timer overlay
+  if (timerOverlay && !timerOverlay.isDestroyed()) {
+    timerOverlay.close();
+    timerOverlay = null;
+  }
+  // Clean up annotation overlay
+  if (annotationOverlay && !annotationOverlay.isDestroyed()) {
+    annotationOverlay.close();
+    annotationOverlay = null;
   }
   // Clean up snipping window
   if (snippingWindow && !snippingWindow.isDestroyed()) {

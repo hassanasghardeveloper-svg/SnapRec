@@ -69,6 +69,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('effect-event', (event, data) => callback(data));
   },
 
+  // Timer overlay
+  createTimerOverlay: () => ipcRenderer.invoke('create-timer-overlay'),
+  closeTimerOverlay: () => ipcRenderer.invoke('close-timer-overlay'),
+  updateTimer: (data) => ipcRenderer.send('timer-update', data),
+  onTimerUpdate: (callback) => {
+    ipcRenderer.on('timer-update', (event, data) => callback(data));
+  },
+
+  // Annotation overlay
+  openAnnotation: () => ipcRenderer.invoke('open-annotation'),
+  closeAnnotation: () => ipcRenderer.invoke('close-annotation'),
+
+  // Auto-start
+  setAutoStart: (enabled) => ipcRenderer.invoke('set-auto-start', enabled),
+  getAutoStart: () => ipcRenderer.invoke('get-auto-start'),
+
   // Remove listeners
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);

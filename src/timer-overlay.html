@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Recording Timer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Segoe UI', sans-serif;
+      -webkit-app-region: drag;
+    }
+
+    .timer-container {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 8px;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .rec-indicator {
+      width: 12px;
+      height: 12px;
+      background: #e34850;
+      border-radius: 50%;
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    .rec-indicator.paused {
+      background: #f59e0b;
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .timer {
+      font-size: 18px;
+      font-weight: 600;
+      color: white;
+      font-family: 'Consolas', monospace;
+      letter-spacing: 1px;
+    }
+
+    .status {
+      font-size: 12px;
+      color: #a0a0a0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .paused-text {
+      color: #f59e0b;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="timer-container">
+    <div class="rec-indicator" id="indicator"></div>
+    <div>
+      <div class="timer" id="timer">00:00:00</div>
+      <div class="status" id="status">Recording</div>
+    </div>
+  </div>
+
+  <script>
+    const timer = document.getElementById('timer');
+    const status = document.getElementById('status');
+    const indicator = document.getElementById('indicator');
+
+    window.electronAPI.onTimerUpdate((data) => {
+      timer.textContent = data.time;
+
+      if (data.paused) {
+        status.textContent = 'Paused';
+        status.classList.add('paused-text');
+        indicator.classList.add('paused');
+      } else {
+        status.textContent = 'Recording';
+        status.classList.remove('paused-text');
+        indicator.classList.remove('paused');
+      }
+    });
+  </script>
+</body>
+</html>
