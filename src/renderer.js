@@ -1617,11 +1617,15 @@ stopRecording = function() {
 };
 
 // Live Zoom Controls - Hold Z + Scroll to zoom during recording
+let mouseTrackingInterval = null;
+
 document.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'z' && !e.repeat) {
     zoomKeyPressed = true;
     if (isRecording) {
       document.body.style.cursor = 'zoom-in';
+      // Start tracking global mouse position
+      startMouseTracking();
     }
   }
 });
@@ -1630,6 +1634,7 @@ document.addEventListener('keyup', (e) => {
   if (e.key.toLowerCase() === 'z') {
     zoomKeyPressed = false;
     document.body.style.cursor = '';
+    stopMouseTracking();
     // Smoothly reset zoom when Z is released
     if (liveZoomLevel > 1) {
       liveZoomEnabled = false;
@@ -1639,39 +1644,68 @@ document.addEventListener('keyup', (e) => {
   }
 });
 
+// Track global mouse position on the actual screen
+function startMouseTracking() {
+  if (mouseTrackingInterval) return;
+  mouseTrackingInterval = setInterval(async () => {
+    if (zoomKeyPressed && isRecording && liveZoomEnabled) {
+      try {
+        const pos = await window.electronAPI.getMousePosition();
+        if (pos) {
+          liveZoomX = pos.x;
+          liveZoomY = pos.y;
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+  }, 16); // ~60fps tracking
+}
+
+function stopMouseTracking() {
+  if (mouseTrackingInterval) {
+    clearInterval(mouseTrackingInterval);
+    mouseTrackingInterval = null;
+  }
+}
+
 // Mouse wheel for zoom level
-document.addEventListener('wheel', (e) => {
+document.addEventListener('wheel', async (e) => {
   if (!zoomKeyPressed || !isRecording) return;
 
   e.preventDefault();
 
-  // Update mouse position for zoom center
-  liveZoomX = e.clientX / window.innerWidth;
-  liveZoomY = e.clientY / window.innerHeight;
+  // Get global mouse position for zoom center
+  try {
+    const pos = await window.electronAPI.getMousePosition();
+    if (pos) {
+      liveZoomX = pos.x;
+      liveZoomY = pos.y;
+    }
+  } catch (err) {
+    // Fallback to window position
+    liveZoomX = e.clientX / window.innerWidth;
+    liveZoomY = e.clientY / window.innerHeight;
+  }
 
   // Adjust zoom level with scroll
   if (e.deltaY < 0) {
     // Scroll up = zoom in
-    liveZoomLevel = Math.min(5, liveZoomLevel + 0.25);
+    liveZoomLevel = Math.min(5, liveZoomLevel + 0.5);
   } else {
     // Scroll down = zoom out
-    liveZoomLevel = Math.max(1, liveZoomLevel - 0.25);
+    liveZoomLevel = Math.max(1, liveZoomLevel - 0.5);
   }
 
   liveZoomEnabled = liveZoomLevel > 1;
 
   if (liveZoomEnabled) {
     showToast(`Zoom: ${liveZoomLevel.toFixed(1)}x`);
+    startMouseTracking();
+  } else {
+    stopMouseTracking();
   }
 }, { passive: false });
-
-// Track mouse position for zoom center
-document.addEventListener('mousemove', (e) => {
-  if (zoomKeyPressed && isRecording && liveZoomEnabled) {
-    liveZoomX = e.clientX / window.innerWidth;
-    liveZoomY = e.clientY / window.innerHeight;
-  }
-});
 
 // Initialize
 initNewFeatures();

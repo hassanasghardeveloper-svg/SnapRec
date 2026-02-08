@@ -566,6 +566,16 @@ function setupIpcHandlers() {
     }
     return true;
   });
+
+  // Global mouse position for live zoom
+  ipcMain.handle('get-mouse-position', () => {
+    const point = screen.getCursorScreenPoint();
+    const display = screen.getPrimaryDisplay();
+    return {
+      x: point.x / display.bounds.width,
+      y: point.y / display.bounds.height
+    };
+  });
 }
 
 // App lifecycle

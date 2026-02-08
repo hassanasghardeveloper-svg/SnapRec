@@ -92,6 +92,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('zoom-screenshot', (event, dataUrl) => callback(dataUrl));
   },
 
+  // Global mouse position for live zoom
+  getMousePosition: () => ipcRenderer.invoke('get-mouse-position'),
+
   // Remove listeners
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
