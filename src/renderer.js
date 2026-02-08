@@ -328,6 +328,13 @@ let compositeCanvas = null;
 let compositeCtx = null;
 let compositeIntervalId = null;
 
+// Live zoom during recording
+let liveZoomEnabled = false;
+let liveZoomLevel = 1;
+let liveZoomX = 0.5; // 0-1 position
+let liveZoomY = 0.5;
+let zoomKeyPressed = false;
+
 function createCompositedStream(screenStream, webcamStream, fps = 30) {
   // Get video track settings
   const videoTrack = screenStream.getVideoTracks()[0];
@@ -347,10 +354,13 @@ function createCompositedStream(screenStream, webcamStream, fps = 30) {
   screenVideo.muted = true;
   screenVideo.play();
 
-  const webcamVideo = document.createElement('video');
-  webcamVideo.srcObject = webcamStream;
-  webcamVideo.muted = true;
-  webcamVideo.play();
+  let webcamVideo = null;
+  if (webcamStream) {
+    webcamVideo = document.createElement('video');
+    webcamVideo.srcObject = webcamStream;
+    webcamVideo.muted = true;
+    webcamVideo.play();
+  }
 
   // Webcam size (proportional to screen)
   const webcamWidth = Math.round(width * 0.15); // 15% of screen width (smaller = less processing)
@@ -370,11 +380,29 @@ function createCompositedStream(screenStream, webcamStream, fps = 30) {
   function drawFrame() {
     if (!compositeCtx) return;
 
-    // Draw screen
-    compositeCtx.drawImage(screenVideo, 0, 0, width, height);
+    // Apply live zoom if enabled
+    if (liveZoomEnabled && liveZoomLevel > 1) {
+      // Calculate zoom area
+      const zoomW = width / liveZoomLevel;
+      const zoomH = height / liveZoomLevel;
+
+      // Center zoom on mouse position
+      let srcX = (liveZoomX * width) - (zoomW / 2);
+      let srcY = (liveZoomY * height) - (zoomH / 2);
+
+      // Clamp to bounds
+      srcX = Math.max(0, Math.min(srcX, width - zoomW));
+      srcY = Math.max(0, Math.min(srcY, height - zoomH));
+
+      // Draw zoomed portion
+      compositeCtx.drawImage(screenVideo, srcX, srcY, zoomW, zoomH, 0, 0, width, height);
+    } else {
+      // Draw screen normally
+      compositeCtx.drawImage(screenVideo, 0, 0, width, height);
+    }
 
     // Draw webcam if enabled
-    if (webcamEnabled && webcamStream) {
+    if (webcamEnabled && webcamVideo && webcamStream) {
       const pos = positions[getWebcamPosition()] || positions['bottom-right'];
       const x = pos.x;
       const y = pos.y;
@@ -473,10 +501,8 @@ async function startRecording() {
     let stream = await getRecordingStream();
     const fpsSetting = parseInt(fps?.value) || 30;
 
-    // If webcam is enabled, create composited stream
-    if (webcamEnabled && webcamStream) {
-      stream = createCompositedStream(stream, webcamStream, fpsSetting);
-    }
+    // Always use composited stream for live zoom feature (and webcam if enabled)
+    stream = createCompositedStream(stream, webcamEnabled ? webcamStream : null, fpsSetting);
 
     // Use higher bitrate for better quality
     const qualitySetting = videoQuality?.value || 'high';
@@ -555,6 +581,11 @@ function stopRecording() {
     mediaRecorder.stop();
     isRecording = false;
     isPaused = false;
+
+    // Reset live zoom
+    liveZoomEnabled = false;
+    liveZoomLevel = 1;
+    zoomKeyPressed = false;
 
     // Stop webcam compositing if active
     stopCompositing();
@@ -1584,6 +1615,63 @@ stopRecording = function() {
   stopEffectsOverlay();
   originalStopRecording.call(this);
 };
+
+// Live Zoom Controls - Hold Z + Scroll to zoom during recording
+document.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'z' && !e.repeat) {
+    zoomKeyPressed = true;
+    if (isRecording) {
+      document.body.style.cursor = 'zoom-in';
+    }
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.key.toLowerCase() === 'z') {
+    zoomKeyPressed = false;
+    document.body.style.cursor = '';
+    // Smoothly reset zoom when Z is released
+    if (liveZoomLevel > 1) {
+      liveZoomEnabled = false;
+      liveZoomLevel = 1;
+      showToast('Zoom reset');
+    }
+  }
+});
+
+// Mouse wheel for zoom level
+document.addEventListener('wheel', (e) => {
+  if (!zoomKeyPressed || !isRecording) return;
+
+  e.preventDefault();
+
+  // Update mouse position for zoom center
+  liveZoomX = e.clientX / window.innerWidth;
+  liveZoomY = e.clientY / window.innerHeight;
+
+  // Adjust zoom level with scroll
+  if (e.deltaY < 0) {
+    // Scroll up = zoom in
+    liveZoomLevel = Math.min(5, liveZoomLevel + 0.25);
+  } else {
+    // Scroll down = zoom out
+    liveZoomLevel = Math.max(1, liveZoomLevel - 0.25);
+  }
+
+  liveZoomEnabled = liveZoomLevel > 1;
+
+  if (liveZoomEnabled) {
+    showToast(`Zoom: ${liveZoomLevel.toFixed(1)}x`);
+  }
+}, { passive: false });
+
+// Track mouse position for zoom center
+document.addEventListener('mousemove', (e) => {
+  if (zoomKeyPressed && isRecording && liveZoomEnabled) {
+    liveZoomX = e.clientX / window.innerWidth;
+    liveZoomY = e.clientY / window.innerHeight;
+  }
+});
 
 // Initialize
 initNewFeatures();
