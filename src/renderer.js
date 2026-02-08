@@ -75,6 +75,10 @@ let lastScreenshotPath = null;
 let recentFiles = [];
 let webcamStream = null;
 let webcamEnabled = false;
+let webcamShape = 'rounded';
+let webcamSizeSetting = 'medium';
+let webcamBorderStyle = 'white';
+let webcamFlipped = true;
 let autoStopTimeout = null;
 let isAudioOnlyMode = false;
 let audioAnalyserSystem = null;
@@ -362,11 +366,24 @@ function createCompositedStream(screenStream, webcamStream, fps = 30) {
     webcamVideo.play();
   }
 
-  // Webcam size (proportional to screen)
-  const webcamWidth = Math.round(width * 0.15); // 15% of screen width (smaller = less processing)
+  // Webcam size based on setting
+  let sizeMultiplier;
+  switch (webcamSizeSetting) {
+    case 'small': sizeMultiplier = 0.10; break;
+    case 'large': sizeMultiplier = 0.22; break;
+    default: sizeMultiplier = 0.15; // medium
+  }
+  const webcamWidth = Math.round(width * sizeMultiplier);
   const webcamHeight = Math.round(webcamWidth * 0.75); // 4:3 aspect ratio
   const padding = 20;
-  const radius = 8;
+
+  // Radius based on shape
+  let radius;
+  switch (webcamShape) {
+    case 'circle': radius = webcamWidth / 2; break;
+    case 'square': radius = 0; break;
+    default: radius = 12; // rounded
+  }
 
   // Pre-calculate positions
   const positions = {
@@ -407,20 +424,67 @@ function createCompositedStream(screenStream, webcamStream, fps = 30) {
       const x = pos.x;
       const y = pos.y;
 
-      // Simple rounded clip and draw
       compositeCtx.save();
+
+      // Create clip path based on shape
       compositeCtx.beginPath();
-      compositeCtx.roundRect(x, y, webcamWidth, webcamHeight, radius);
+      if (webcamShape === 'circle') {
+        const centerX = x + webcamWidth / 2;
+        const centerY = y + webcamHeight / 2;
+        const radiusX = webcamWidth / 2;
+        const radiusY = webcamHeight / 2;
+        compositeCtx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+      } else {
+        compositeCtx.roundRect(x, y, webcamWidth, webcamHeight, radius);
+      }
       compositeCtx.clip();
-      compositeCtx.drawImage(webcamVideo, x, y, webcamWidth, webcamHeight);
+
+      // Draw webcam with optional flip
+      if (webcamFlipped) {
+        compositeCtx.translate(x + webcamWidth, y);
+        compositeCtx.scale(-1, 1);
+        compositeCtx.drawImage(webcamVideo, 0, 0, webcamWidth, webcamHeight);
+      } else {
+        compositeCtx.drawImage(webcamVideo, x, y, webcamWidth, webcamHeight);
+      }
+
       compositeCtx.restore();
 
-      // Simple border
-      compositeCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      compositeCtx.lineWidth = 2;
-      compositeCtx.beginPath();
-      compositeCtx.roundRect(x, y, webcamWidth, webcamHeight, radius);
-      compositeCtx.stroke();
+      // Draw border based on style
+      if (webcamBorderStyle !== 'none') {
+        compositeCtx.save();
+        compositeCtx.beginPath();
+
+        if (webcamShape === 'circle') {
+          const centerX = x + webcamWidth / 2;
+          const centerY = y + webcamHeight / 2;
+          compositeCtx.ellipse(centerX, centerY, webcamWidth / 2, webcamHeight / 2, 0, 0, Math.PI * 2);
+        } else {
+          compositeCtx.roundRect(x, y, webcamWidth, webcamHeight, radius);
+        }
+
+        if (webcamBorderStyle === 'white') {
+          compositeCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+          compositeCtx.lineWidth = 3;
+        } else if (webcamBorderStyle === 'glow') {
+          compositeCtx.shadowColor = '#3b82f6';
+          compositeCtx.shadowBlur = 15;
+          compositeCtx.strokeStyle = '#3b82f6';
+          compositeCtx.lineWidth = 3;
+        } else if (webcamBorderStyle === 'rainbow') {
+          // Animated rainbow gradient
+          const time = Date.now() / 1000;
+          const gradient = compositeCtx.createLinearGradient(x, y, x + webcamWidth, y + webcamHeight);
+          gradient.addColorStop(0, `hsl(${(time * 60) % 360}, 100%, 50%)`);
+          gradient.addColorStop(0.5, `hsl(${(time * 60 + 120) % 360}, 100%, 50%)`);
+          gradient.addColorStop(1, `hsl(${(time * 60 + 240) % 360}, 100%, 50%)`);
+          compositeCtx.strokeStyle = gradient;
+          compositeCtx.lineWidth = 4;
+        }
+
+        compositeCtx.stroke();
+        compositeCtx.restore();
+      }
     }
   }
 
@@ -915,8 +979,31 @@ function setupEventListeners() {
   webcamToggle?.addEventListener('change', () => {
     if (webcamToggle.checked) {
       startWebcam();
+      document.getElementById('webcamOptions')?.classList.add('active');
     } else {
       stopWebcam();
+      document.getElementById('webcamOptions')?.classList.remove('active');
+    }
+  });
+
+  // Webcam options
+  document.getElementById('webcamShape')?.addEventListener('change', (e) => {
+    webcamShape = e.target.value;
+  });
+
+  document.getElementById('webcamSize')?.addEventListener('change', (e) => {
+    webcamSizeSetting = e.target.value;
+  });
+
+  document.getElementById('webcamBorder')?.addEventListener('change', (e) => {
+    webcamBorderStyle = e.target.value;
+  });
+
+  document.getElementById('webcamFlip')?.addEventListener('change', (e) => {
+    webcamFlipped = e.target.checked;
+    // Also update the preview
+    if (webcamPreview) {
+      webcamPreview.style.transform = webcamFlipped ? 'scaleX(-1)' : 'scaleX(1)';
     }
   });
 

@@ -210,6 +210,42 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
+
+            <!-- Webcam Options (shown when webcam is enabled) -->
+            <div class="webcam-options" id="webcamOptions">
+              <div class="option-row sub-option">
+                <span class="sub-label">Shape</span>
+                <select class="small-select" id="webcamShape">
+                  <option value="circle">Circle</option>
+                  <option value="rounded" selected>Rounded</option>
+                  <option value="square">Square</option>
+                </select>
+              </div>
+              <div class="option-row sub-option">
+                <span class="sub-label">Size</span>
+                <select class="small-select" id="webcamSize">
+                  <option value="small">Small</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="large">Large</option>
+                </select>
+              </div>
+              <div class="option-row sub-option">
+                <span class="sub-label">Border</span>
+                <select class="small-select" id="webcamBorder">
+                  <option value="none">None</option>
+                  <option value="white" selected>White</option>
+                  <option value="glow">Glow</option>
+                  <option value="rainbow">Rainbow</option>
+                </select>
+              </div>
+              <div class="option-row sub-option">
+                <span class="sub-label">Flip</span>
+                <label class="toggle">
+                  <input type="checkbox" id="webcamFlip" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
             <div class="option-row">
               <div class="option-label">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
